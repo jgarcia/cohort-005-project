@@ -3,6 +3,9 @@ import type { Route } from "./+types/layout.app";
 import { Sidebar } from "~/components/sidebar";
 import { DevUI } from "~/components/dev-ui";
 import { Toaster } from "sonner";
+import { getKnockFeedConfig } from "~/lib/prototype-knock.server";
+import { usePrototypeNotificationFeed } from "~/components/prototype-notification-feed";
+import { samplesFor } from "~/components/prototype-notification-feed/samples";
 import { getCurrentUserId, getDevCountry } from "~/lib/session";
 import { getCountryTierInfo, COUNTRIES } from "~/lib/ppp";
 import { eq, and, or, sql, desc } from "drizzle-orm";
@@ -213,6 +216,11 @@ export async function loader({ request }: Route.LoaderArgs) {
     countryTierInfo,
     countries: COUNTRIES,
     isTeamAdmin: currentUserId ? isTeamAdmin(currentUserId) : false,
+    // PROTOTYPE (wayfinder ticket #17)
+    knockFeed: getKnockFeedConfig(currentUserId),
+    notificationSamples: currentUser
+      ? samplesFor(currentUser.role, currentUserId ? isTeamAdmin(currentUserId) : false)
+      : [],
   };
 }
 
@@ -225,7 +233,10 @@ export default function AppLayout({ loaderData }: Route.ComponentProps) {
     countryTierInfo,
     countries,
     isTeamAdmin: userIsTeamAdmin,
+    knockFeed,
+    notificationSamples,
   } = loaderData;
+  const feedSlots = usePrototypeNotificationFeed(knockFeed, notificationSamples);
 
   return (
     <div className="flex h-screen overflow-hidden">
@@ -233,10 +244,14 @@ export default function AppLayout({ loaderData }: Route.ComponentProps) {
         currentUser={currentUser}
         recentCourses={recentCourses}
         isTeamAdmin={userIsTeamAdmin}
+        headerSlot={currentUser && feedSlots.sidebarHeader}
+        navSlot={currentUser && feedSlots.sidebarNav}
       />
       <main className="flex-1 overflow-y-auto">
-        <Outlet />
+        {currentUser && feedSlots.mainTop}
+        {(currentUser && feedSlots.mainOverride) || <Outlet />}
       </main>
+      {currentUser && feedSlots.overlay}
       <DevUI
         users={users}
         currentUser={currentUser}
